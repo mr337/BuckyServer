@@ -1,5 +1,6 @@
 request = require('request')
 dgram = require('dgram')
+strsplit = require('strsplit')
 
 class Client
   constructor: (@config={}, @logger) ->
@@ -109,9 +110,40 @@ class Client
       continue unless row
       [val, unit, sample] = row
 
+      key = @tagMetric key
+
       data.push key + ' ' + 'value=' + [[parseFloat val]]
 
     return data.join('\n')
+
+  tagMetric: (metric) ->
+    tags = []
+    split = strsplit metric, '.'
+    length = split.length
+    @logger.log length-1
+
+    # Quick exit for bucky.latency metrics
+    if split[0] == 'bucky'
+      return metric
+
+    tags.push "client=#{split[0]}"
+    tags.push "module=#{split[3]}"
+    tags.push "page=#{split[4]}"
+    tags.push "call=#{split[5]}"
+    tags.push "metric=#{split[length-1]}"
+
+    # Check to see if it is a ajax metric
+    if split[5] == 'requests'
+
+      # Check to see if total request time
+      if split[length-1] == 'post'
+        tags.push "request_type=#{split[length-1]}"
+      else
+        tags.push "request_type=#{split[length-2]}"
+
+    @logger.log split
+    @logger.log tags
+    return "#{split[length-1]},#{tags.join(',')}"
 
   parseRow: (row) ->
     re = /([0-9\.]+)\|([a-z]+)(?:@([0-9\.]+))?/
